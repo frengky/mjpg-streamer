@@ -1,0 +1,78 @@
+diff -crB mjpg-streamer-orig/mjpg-streamer/plugins/input_uvc/input_uvc.c mjpg-streamer/mjpg-streamer/plugins/input_uvc/input_uvc.c
+*** mjpg-streamer-orig/mjpg-streamer/plugins/input_uvc/input_uvc.c	2015-12-23 17:46:31.057034849 +0700
+--- mjpg-streamer/mjpg-streamer/plugins/input_uvc/input_uvc.c	2015-12-23 19:17:26.125904200 +0700
+***************
+*** 405,413 ****
+          if(pcontext->videoIn->formatIn == V4L2_PIX_FMT_YUYV) {
+              DBG("compressing frame from input: %d\n", (int)pcontext->id);
+              pglobal->in[pcontext->id].size = compress_yuyv_to_jpeg(pcontext->videoIn, pglobal->in[pcontext->id].buf, pcontext->videoIn->framesizeIn, gquality);
+          } else {
+              DBG("copying frame from input: %d\n", (int)pcontext->id);
+!             pglobal->in[pcontext->id].size = memcpy_picture(pglobal->in[pcontext->id].buf, pcontext->videoIn->tmpbuffer, pcontext->videoIn->buf.bytesused);
+          }
+  
+  #if 0
+--- 405,417 ----
+          if(pcontext->videoIn->formatIn == V4L2_PIX_FMT_YUYV) {
+              DBG("compressing frame from input: %d\n", (int)pcontext->id);
+              pglobal->in[pcontext->id].size = compress_yuyv_to_jpeg(pcontext->videoIn, pglobal->in[pcontext->id].buf, pcontext->videoIn->framesizeIn, gquality);
++             /* copy this frame's timestamp to user space */
++             pglobal->in[pcontext->id].timestamp = pcontext->videoIn->buf.timestamp;
+          } else {
+              DBG("copying frame from input: %d\n", (int)pcontext->id);
+!             pglobal->in[pcontext->id].size = memcpy_picture(pglobal->in[pcontext->id].buf, pcontext->videoIn->tmpbuffer, pcontext->videoIn->tmpbytesused);
+!             /* copy this frame's timestamp to user space */
+!             pglobal->in[pcontext->id].timestamp = pcontext->videoIn->tmptimestamp;
+          }
+  
+  #if 0
+***************
+*** 418,426 ****
+          prev_size = global->size;
+  #endif
+  
+-         /* copy this frame's timestamp to user space */
+-         pglobal->in[pcontext->id].timestamp = pcontext->videoIn->buf.timestamp;
+- 
+          /* signal fresh_frame */
+          pthread_cond_broadcast(&pglobal->in[pcontext->id].db_update);
+          pthread_mutex_unlock(&pglobal->in[pcontext->id].db);
+--- 422,427 ----
+diff -crB mjpg-streamer-orig/mjpg-streamer/plugins/input_uvc/v4l2uvc.c mjpg-streamer/mjpg-streamer/plugins/input_uvc/v4l2uvc.c
+*** mjpg-streamer-orig/mjpg-streamer/plugins/input_uvc/v4l2uvc.c	2015-12-23 17:46:31.057034849 +0700
+--- mjpg-streamer/mjpg-streamer/plugins/input_uvc/v4l2uvc.c	2015-12-23 19:20:44.092841359 +0700
+***************
+*** 450,455 ****
+--- 450,457 ----
+          */
+  
+          memcpy(vd->tmpbuffer, vd->mem[vd->buf.index], vd->buf.bytesused);
++         vd->tmpbytesused = vd->buf.bytesused;
++         vd->tmptimestamp = vd->buf.timestamp;
+  
+          if(debug)
+              fprintf(stderr, "bytes in used %d \n", vd->buf.bytesused);
+diff -crB mjpg-streamer-orig/mjpg-streamer/plugins/input_uvc/v4l2uvc.h mjpg-streamer/mjpg-streamer/plugins/input_uvc/v4l2uvc.h
+*** mjpg-streamer-orig/mjpg-streamer/plugins/input_uvc/v4l2uvc.h	2015-12-23 17:46:31.057034849 +0700
+--- mjpg-streamer/mjpg-streamer/plugins/input_uvc/v4l2uvc.h	2015-12-23 19:22:53.333597544 +0700
+***************
+*** 28,33 ****
+--- 28,34 ----
+  
+  
+  #include <stdio.h>
++ #include <stdint.h>
+  #include <string.h>
+  #include <fcntl.h>
+  #include <unistd.h>
+***************
+*** 105,110 ****
+--- 106,113 ----
+      int framecount;
+      int recordstart;
+      int recordtime;
++     uint32_t tmpbytesused;
++     struct timeval tmptimestamp;
+  };
+  
+  /* context of each camera thread */
